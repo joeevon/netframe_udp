@@ -1,5 +1,5 @@
 /****************************
-    FileName:netframe_io.cgethash client of server failed
+    FileName:netframe_io.c
     (C) Copyright 2014 by Careland
     凯立德秘密信息
     Description:
@@ -1014,12 +1014,10 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
 
     struct sockaddr_in *ptClientAddr = (struct sockaddr_in *)(pmsg->msg_name);
     LOG_SYS_DEBUG("peer ip:%s", inet_ntoa(ptClientAddr->sin_addr));
-    char strClientIp[32] = { 0 };
-    memcpy(strClientIp, inet_ntoa(ptClientAddr->sin_addr), sizeof(strClientIp) - 1);
 
     pIoThreadContext->tMonitorElement.lRecvLength += nDataReadLen;
     pIoThreadContext->tMonitorElement.lRecvPackNum++;
-    pSocketElement->Time = cnv_comm_get_utctime();  //收、发数据后重置时间戳
+    //pSocketElement->Time = cnv_comm_get_utctime();  //收、发数据后重置时间戳
     LOG_SYS_DEBUG("lDataRemain:%d, read data length:%d", ptClnSockData->lDataRemain, nDataReadLen);
 
     ptClnSockData->pMovePointer = ptClnSockData->pDataBuffer;
@@ -1087,7 +1085,7 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
             return CNV_ERR_MALLOC;
         }
         pIOHanldeData->lConnectID = atoi((char *)pConnId);
-        memcpy(pIOHanldeData->strServIp, strClientIp, sizeof(pIOHanldeData->strServIp) - 1);
+        memcpy(pIOHanldeData->strServIp, inet_ntoa(ptClientAddr->sin_addr), sizeof(pIOHanldeData->strServIp) - 1);
         pIOHanldeData->ulPort = pSocketElement->uSockElement.tClnSockElement.tSvrSockData.lPort;
         pIOHanldeData->lDataLen = nPacketSize;
         pIOHanldeData->handle_io_eventfd = pIoThreadContext->handle_io_eventfd;
