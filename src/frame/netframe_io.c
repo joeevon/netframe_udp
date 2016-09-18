@@ -1291,10 +1291,10 @@ int  io_thread_run(void *pThreadParameter)
                     {
                         iothread_recv_accept(Epollfd, szEpollEvent[i].data.fd, accept_io_msgque, HashConnidFd, pIoThreadContext);
                     }
-                    //else if(EventfdHandle == szEpollEvent[i].data.fd)   //handle唤醒
-                    //{
-                    //    iothread_handle_respond(Epollfd, szEpollEvent[i].data.fd, handle_io_msgque, HashAddrFd, HashConnidFd, pIoThreadContext);
-                    //}
+                    else if(EventfdHandle == szEpollEvent[i].data.fd)   //handle唤醒
+                    {
+                        iothread_handle_respond(Epollfd, szEpollEvent[i].data.fd, handle_io_msgque, HashAddrFd, HashConnidFd, pIoThreadContext);
+                    }
                     else if(timerfd_monitor == szEpollEvent[i].data.fd)     //进程监控
                     {
                         read(timerfd_monitor, &ulData, sizeof(uint64_t));
