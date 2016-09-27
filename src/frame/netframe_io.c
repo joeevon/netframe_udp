@@ -990,7 +990,7 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
     SOCKET_ELEMENT *pSocketElement = (SOCKET_ELEMENT *)(((HASHMAP_VALUE *)pOutValue)->pValue);
     struct msghdr *pmsg = &(pSocketElement->uSockElement.tClnSockElement.msg);
     CLIENT_SOCKET_DATA *ptClnSockData = &(pSocketElement->uSockElement.tClnSockElement.SocketData);
-    bzero(pmsg->msg_iov->iov_base, pmsg->msg_iov->iov_len);
+    //bzero(pmsg->msg_iov->iov_base, pmsg->msg_iov->iov_len);
 
     nRet = netframe_recvmsg(pSocketElement->Socket, pmsg, &nDataReadLen);  //接收数据
     if(nRet != CNV_ERR_OK)
@@ -1015,13 +1015,13 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
     struct sockaddr_in *ptClientAddr = (struct sockaddr_in *)(pmsg->msg_name);
     LOG_SYS_DEBUG("peer ip:%s", inet_ntoa(ptClientAddr->sin_addr));
 
-    pIoThreadContext->tMonitorElement.lRecvLength += nDataReadLen;
+    //pIoThreadContext->tMonitorElement.lRecvLength += nDataReadLen;
     pIoThreadContext->tMonitorElement.lRecvPackNum++;
     //pSocketElement->Time = cnv_comm_get_utctime();  //收、发数据后重置时间戳
     LOG_SYS_DEBUG("lDataRemain:%d, read data length:%d", ptClnSockData->lDataRemain, nDataReadLen);
 
     ptClnSockData->pMovePointer = ptClnSockData->pDataBuffer;
-    ptClnSockData->lDataRemain += nDataReadLen;
+    ptClnSockData->lDataRemain = nDataReadLen;
     pfnCNV_PARSE_PROTOCOL pfncnvparseprotocol = pSocketElement->uSockElement.tClnSockElement.pfncnv_parse_protocol;  //协议解析回调函数
     if(!pfncnvparseprotocol)
     {
@@ -1032,7 +1032,7 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
 
     while(ptClnSockData->lDataRemain > 0)
     {
-        ptClnSockData->pMovePointer += nPacketSize; //数据缓存指针偏移
+        //ptClnSockData->pMovePointer += nPacketSize; //数据缓存指针偏移
         nPacketSize = 0;
         pPacket = NULL;
         nRet = pfncnvparseprotocol(&(ptClnSockData->pMovePointer), &(ptClnSockData->lDataRemain), &pPacket, &nPacketSize, &pAuxiliary);  //协议解析
