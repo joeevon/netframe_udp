@@ -48,7 +48,7 @@ extern "C"
     }
     enumDISTRIBUTE_TYPE;
 
-    // HANDLE CONTEXT
+    //HANDLE CONTEXT
     struct __IO_THREAD_CONTEXT;
     typedef struct  __HANDLE_THREAD_CONTEXT
     {
@@ -57,7 +57,6 @@ extern "C"
         int  Epollfd;
         int  io_handle_eventfd;  //io唤醒handle
         void *HashTimerTask;    //key:taskname   valude:cb function
-        struct __IO_THREAD_CONTEXT *szIoContext;
         CNV_UNBLOCKING_QUEUE *queDistribute;    //存放负载的线程
         CNV_UNBLOCKING_QUEUE *queParamFrames;   //框架handle使用的参数,有业务初始化好传进,所以由业务释放
         LOCKFREE_QUEUE  io_handle_msgque;
@@ -65,7 +64,7 @@ extern "C"
         void *pHandleParam;    //handle参数
     } HANDLE_THREAD_CONTEXT;
 
-    // HANDLE  ITEM
+    //HANDLE  ITEM
     typedef  struct  __HANDLE_THREAD_ITEM
     {
         char  strThreadName[DEFAULT_ARRAY_SIZE];
@@ -109,7 +108,6 @@ extern "C"
         CNV_BLOCKING_QUEUE  *handle_io_msgque;    //handle -> io
         CNV_UNBLOCKING_QUEUE  *handle_msgque_one;    //handle -> io  self
         CNV_UNBLOCKING_QUEUE  *handle_msgque_two;    //handle -> io  self
-        struct epoll_event  *EpollEvent;
         HANDLE_THREAD_CONTEXT  *szHandleContext[MAX_HANDLE_THREAD];
         pfnCNV_MONITOR_CALLBACK  pfncnv_monitor_callback;
         MONITOR_ELEMENT tMonitorElement;
@@ -135,32 +133,6 @@ extern "C"
         int lHandleIoMsgSize;
         IO_THREAD_ITEM szConfigIOItem[MAX_IO_THREAD];
     } NETFRAME_CONFIG_IO;
-
-    //AUXILIARY CONTEXT
-    typedef struct  __AUXILIARY_THREAD_CONTEXT
-    {
-        short threadindex;
-        char threadname[20];
-        IO_THREAD_CONTEXT *pIoThreadContexts;   //所有IO线程的CONTEXT
-        CNV_UNBLOCKING_QUEUE queuerespond;   //返回IO的数据
-    } AUXILIARY_THREAD_CONTEXT;
-
-    //AUXILIARY ITEM
-    typedef  struct  __AUXILIARY_THREAD_ITEM
-    {
-        int  lThreadIndex;     //开启线时自定义的序号
-        char strThreadName[DEFAULT_ARRAY_SIZE];
-        pthread_t ulThreadId;    //线程ID
-        void *ThreadHandle;
-        AUXILIARY_THREAD_CONTEXT *pAuxiliaryThreadContext;
-    } AUXILIARY_THREAD_ITEM;
-
-    //AUXILIARY CONFIG
-    typedef  struct  __NETFRAME_CONFIG_AUXILIARY
-    {
-        int lNumberOfThread;
-        AUXILIARY_THREAD_ITEM szConfigAuxiliaryItem[MAX_AUXILIARY_THREAD];
-    } NETFRAME_CONFIG_AUXILIARY;
 
     //HOST
     typedef struct  __NETFRAME_HOST
@@ -198,10 +170,14 @@ extern "C"
         int UdpSocket;
         int UnixListenSocket;
         int  Epollfd;
+        int  accept_eventfd;  //其他线程唤醒
         void *HashFdListen;      //  key:socket  value:listen item
+        CALLBACK_STRUCT_T  tStatisCallback;  //数据统计回调函数
         CNV_UNBLOCKING_QUEUE *queEventfds;  //需要唤醒队列的fd
         IO_THREAD_CONTEXT *pIoThreadContexts;
         ACCEPT_THREAD_ITEM  *pConfigAcceptItem;
+        LOCKFREE_QUEUE  statis_msgque;  //统计数据的队列
+        CNV_UNBLOCKING_QUEUE queStatisData;  //统计数据返回的消息队列
     } ACCEPT_THREAD_CONTEXT;
 
     // ACCEPT CONFIG
@@ -249,13 +225,15 @@ extern "C"
         char  strTransmission[DEFAULT_ARRAY_SIZE];     //传输协议,IO需根据传输协议来收数据
         char  strProtocol[DEFAULT_ARRAY_SIZE]; //服务协议
         char strServiceName[DEFAULT_ARRAY_SIZE];  //服务名字,供找同类服务器使用
+        char strClientIp[DEFAULT_ARRAY_SIZE];
+        unsigned short uClientPort;
         int lSourceCode;   //来源
         struct sockaddr_in tClientAddr;
         struct iovec tIovecClnData;
         struct msghdr msg;       //数据内容
-		char strControl[CMSG_SPACE(sizeof(struct in_pktinfo))];
+        char strControl[CMSG_SPACE(sizeof(struct in_pktinfo))];
         SERVER_SOCKET_DATA tSvrSockData;
-        CLIENT_SOCKET_DATA  SocketData;  //相关读数据
+        CLIENT_SOCKET_DATA SocketData;  //相关读数据
         pfnCNV_PARSE_PROTOCOL  pfncnv_parse_protocol;   //协议解析回调函数
         pfnCNV_HANDLE_BUSINESS  pfncnv_handle_business;   //业务处理回调函数
         int  nReserveOne;   //保留变量
@@ -291,7 +269,7 @@ extern "C"
     typedef  struct  _TIMER_TASK_STRUCT
     {
         int timerfd;
-        pfnCNV_CALLBACK_FUNCTION  pfnCALLBACK_FUNCTION;
+        pfnCNV_HANDLE_CALLBACK  pfnHADLE_CALLBACK;
     } TIMER_TASK_STRUCT;
 
     // 全局配置
@@ -301,7 +279,6 @@ extern "C"
         NETFRAME_CONFIG_ACCEPT  tConfigAccept;
         NETFRAME_CONFIG_IO  tConfigIO;
         NETFRAME_CONFIG_HANDLE  tConfigHandle;
-        NETFRAME_CONFIG_AUXILIARY tConfigAuxiliary;
         TIMER_STRUCT  tHeartBeat;
         TIMER_STRUCT  tSocketClear;
         TIMER_STRUCT  tMonitor;
