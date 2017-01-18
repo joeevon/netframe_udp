@@ -69,6 +69,7 @@ extern "C"
     {
         char  strThreadName[DEFAULT_ARRAY_SIZE];
         int  lThreadIndex;     //开启线时自定义的序号
+		int nIsStasistics;   //是否统计
         char  strDistribution[DEFAULT_ARRAY_SIZE];
         char  strAlgorithm[DEFAULT_ARRAY_SIZE];
         pthread_t  ulThreadId;    //线程ID
@@ -117,7 +118,7 @@ extern "C"
     typedef  struct  __IO_THREAD_ITEM
     {
         int  lThreadIndex;     //开启线时自定义的序号
-        int nDistributeType;   //分发类型  1、权重   2、哈希   3、负载
+        int nIsStasistics;   //是否统计
         char  strThreadName[DEFAULT_ARRAY_SIZE];
         char  strDistribution[DEFAULT_ARRAY_SIZE];
         char  strAlgorithm[DEFAULT_ARRAY_SIZE];

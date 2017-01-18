@@ -79,7 +79,6 @@ void free_server_unblock_queue(CNV_UNBLOCKING_QUEUE *queServer)
 
 void  monitor_iothread(IO_THREAD_CONTEXT *pIoThreadContext)
 {
-    LOG_ACC_DEBUG("io %d, RecvLengthPerSecond=%ld", pIoThreadContext->threadindex, pIoThreadContext->tMonitorElement.lRecvLength / g_params.tMonitor.interval_sec);
     LOG_ACC_DEBUG("io %d, RcvPackNumPerSecond=%ld", pIoThreadContext->threadindex, pIoThreadContext->tMonitorElement.lRecvPackNum / g_params.tMonitor.interval_sec);
     LOG_ACC_DEBUG("io %d, ParsePackNumPerSecond=%ld", pIoThreadContext->threadindex, pIoThreadContext->tMonitorElement.lParsePackNum / g_params.tMonitor.interval_sec);
     LOG_ACC_DEBUG("io %d, RepTimesPerSecond=%d", pIoThreadContext->threadindex, pIoThreadContext->tMonitorElement.nRespondTimes / g_params.tMonitor.interval_sec);
@@ -701,7 +700,7 @@ int iothread_handle_respond(int Epollfd, int Eventfd, CNV_BLOCKING_QUEUE *handle
     while(lNumOfRepMsg--)
     {
         HANDLE_TO_IO_DATA *pHandleIOData = (HANDLE_TO_IO_DATA *)poll_unblock_queue_head(unblockqueue);
-        if(!pHandleIOData)    // 可能为空消息
+        if(pHandleIOData == NULL)    // 可能为空消息
         {
             continue;
         }
@@ -753,8 +752,8 @@ int iothread_handle_respond(int Epollfd, int Eventfd, CNV_BLOCKING_QUEUE *handle
             if(nRet != CNV_ERR_OK)
             {
                 LOG_SYS_ERROR("write_client, iothread_get_hashsocket failed !");
-                cnv_comm_Free(pHandleIOData->pDataSend);
-                cnv_comm_Free(pHandleIOData);
+                free(pHandleIOData->pDataSend);
+                free(pHandleIOData);
                 continue;
             }
 
@@ -792,8 +791,8 @@ int iothread_handle_respond(int Epollfd, int Eventfd, CNV_BLOCKING_QUEUE *handle
             if(nRet != CNV_ERR_OK)
             {
                 LOG_SYS_ERROR("write_client, iothread_get_hashsocket failed !");
-                cnv_comm_Free(pHandleIOData->pDataSend);
-                cnv_comm_Free(pHandleIOData);
+                free(pHandleIOData->pDataSend);
+                free(pHandleIOData);
                 continue;
             }
 
@@ -802,8 +801,8 @@ int iothread_handle_respond(int Epollfd, int Eventfd, CNV_BLOCKING_QUEUE *handle
             remove_client_socket_hashmap(pIoThreadContext->Epollfd, pIoThreadContext->HashConnidFd, pSocketElement->pConnId);
         }
 
-        cnv_comm_Free(pHandleIOData->pDataSend);
-        cnv_comm_Free(pHandleIOData);
+        free(pHandleIOData->pDataSend);
+        free(pHandleIOData);
     }
     pIoThreadContext->tMonitorElement.nRespondTimes++;
 
@@ -815,20 +814,21 @@ int iothread_handle_respond(int Epollfd, int Eventfd, CNV_BLOCKING_QUEUE *handle
             LOG_SYS_FATAL("handle respond read eventfd failed !");
         }
     }
+
     LOG_SYS_DEBUG("iothread_handle_respond end.");
     return  CNV_ERR_OK;
 }
 
 //选择handle线程
-int  io_select_handle_thread(IO_THREAD_CONTEXT *pIoThreadContext, HANDLE_THREAD_CONTEXT **pHandleContexts, CNV_UNBLOCKING_QUEUE  *queuedistribute, HANDLE_THREAD_CONTEXT **pHandleContext)
+int  io_select_handle_thread(IO_THREAD_CONTEXT *pIoThreadContext, HANDLE_THREAD_CONTEXT **pHandleContext)
 {
     int  lThreadIndex = 0;
 
-    char *pThreadIndex = (char *)poll_unblock_queue_head(queuedistribute);
-    push_unblock_queue_tail(queuedistribute, pThreadIndex);    //此处取出后重新插入,达到分配效果
+    char *pThreadIndex = (char *)poll_unblock_queue_head(pIoThreadContext->queDistribute);
+    push_unblock_queue_tail(pIoThreadContext->queDistribute, pThreadIndex);    //此处取出后重新插入,达到分配效果
     lThreadIndex = atoi(pThreadIndex);
     LOG_SYS_DEBUG("io thread %d select handle thread %d", pIoThreadContext->threadindex, lThreadIndex);
-    *pHandleContext = pHandleContexts[lThreadIndex];
+    *pHandleContext = (pIoThreadContext->szHandleContext)[lThreadIndex];
     if(!*pHandleContext)
     {
         return  CNV_ERR_SELECT_THREAD;
@@ -968,8 +968,7 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
     int nDataReadLen = 0;
     unsigned int nPacketSize = 0;
     void  *pOutValue = NULL;
-    void *pAuxiliary = NULL;
-    char *pPacket = NULL; //使用时置零
+    char *pPacket = NULL;
     HANDLE_THREAD_CONTEXT *pHandleContext = NULL;
 
     int nRet = cnv_hashmap_get(HashConnidFd, pConnId, &pOutValue);  //用connid获取socket相关结构体
@@ -984,7 +983,7 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
     CLIENT_SOCKET_DATA *ptClnSockData = &(pSocketElement->uSockElement.tClnSockElement.SocketData);
     pmsg->msg_iov->iov_base = ptClnSockData->pDataBuffer + ptClnSockData->lDataRemain;       //拼接剩余数据
     pmsg->msg_iov->iov_len = g_params.nMaxBufferSize - ptClnSockData->lDataRemain;    //剩余缓存长度
-    bzero(pmsg->msg_iov->iov_base, pmsg->msg_iov->iov_len);
+    memset(pmsg->msg_iov->iov_base, 0, pmsg->msg_iov->iov_len);
 
     nRet = netframe_recvmsg(pSocketElement->Socket, pmsg, &nDataReadLen);  //接收数据
     if(nRet != CNV_ERR_OK)
@@ -1010,7 +1009,6 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
     struct sockaddr_in *ptClientAddr = (struct sockaddr_in *)(pmsg->msg_name);
     LOG_SYS_DEBUG("peer ip:%s", inet_ntoa(ptClientAddr->sin_addr));
 
-    pIoThreadContext->tMonitorElement.lRecvLength += nDataReadLen;
     pIoThreadContext->tMonitorElement.lRecvPackNum++;
     pSocketElement->Time = cnv_comm_get_utctime();  //收、发数据后重置时间戳
     LOG_SYS_DEBUG("lDataRemain:%d, read data length:%d", ptClnSockData->lDataRemain, nDataReadLen);
@@ -1028,14 +1026,22 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
     while(ptClnSockData->lDataRemain > 0)
     {
         ptClnSockData->pMovePointer += nPacketSize; //数据缓存指针偏移
-        nPacketSize = 0;
         pPacket = NULL;
-        nRet = pfncnvparseprotocol(&(ptClnSockData->pMovePointer), &(ptClnSockData->lDataRemain), &pPacket, &nPacketSize, &pAuxiliary);  //协议解析
+        nPacketSize = 0;
+        nRet = pfncnvparseprotocol(&(ptClnSockData->pMovePointer), &(ptClnSockData->lDataRemain), &pPacket, &nPacketSize);  //协议解析
         if(nRet != CNV_PARSE_SUCCESS)
         {
-            if(nRet == CNV_PARSE_FINISH && ptClnSockData->lDataRemain > 0)  //结束解析而且有剩余数据
+            if(nRet == CNV_PARSE_FINISH)  //结束解析而且有剩余数据
             {
-                memcpy(ptClnSockData->pDataBuffer, ptClnSockData->pMovePointer, ptClnSockData->lDataRemain);
+                if(ptClnSockData->lDataRemain < g_params.nMaxBufferSize)
+                {
+                    memcpy(ptClnSockData->pDataBuffer, ptClnSockData->pMovePointer, ptClnSockData->lDataRemain);
+                }
+                else
+                {
+                    LOG_SYS_ERROR("single package beyond max buffer.");
+                    remove_client_socket_hashmap(Epollfd, HashConnidFd, pConnId);
+                }
             }
             else if(nRet == CNV_PARSE_SHUTDOWN)    //关闭客户端
             {
@@ -1044,61 +1050,42 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
             else if(nRet == CNV_PARSE_MOVE)     //数据偏移
             {
                 ptClnSockData->lDataRemain -= nPacketSize;      //总数据长度减去一个包的数据大小
-                if(ptClnSockData->lDataRemain == 0 && pAuxiliary)     //解析完了才把pAuxiliary内存释放
-                {
-                    cnv_comm_Free(pAuxiliary);
-                    pAuxiliary = NULL;
-                }
                 continue;
             }
-            else if(nRet == CNV_PARSE_ERROR)    //解析错误,数据清空
+            else if(nRet == CNV_PARSE_ERROR)    //解析错误,关闭客户端
             {
-                memset(ptClnSockData->pDataBuffer, 0, g_params.nMaxBufferSize);
-                ptClnSockData->lDataRemain = 0;
+                remove_client_socket_hashmap(Epollfd, HashConnidFd, pConnId);
             }
 
-            if(pAuxiliary)
-            {
-                cnv_comm_Free(pAuxiliary);
-                pAuxiliary = NULL;
-            }
             break;
         }
 
         ptClnSockData->lDataRemain -= nPacketSize;      //总数据长度减去一个包的数据大小
-        if(ptClnSockData->lDataRemain == 0 && pAuxiliary)    //解析完了才把pAuxiliary内存释放
-        {
-            cnv_comm_Free(pAuxiliary);
-            pAuxiliary = NULL;
-        }
         pIoThreadContext->tMonitorElement.lParsePackNum++;
 
-        IO_TO_HANDLE_DATA *pIOHanldeData = (IO_TO_HANDLE_DATA *)cnv_comm_Malloc(sizeof(IO_TO_HANDLE_DATA));    //io->handle  header
-        if(!pIOHanldeData)
+        IO_TO_HANDLE_DATA *pIOHanldeData = (IO_TO_HANDLE_DATA *)malloc(sizeof(IO_TO_HANDLE_DATA));    //io->handle  header
+        if(pIOHanldeData == NULL)
         {
-            cnv_comm_Free(pPacket);
+            free(pPacket);
             return CNV_ERR_MALLOC;
         }
         pIOHanldeData->lConnectID = atoi((char *)pConnId);
         memcpy(pIOHanldeData->strServIp, inet_ntoa(ptClientAddr->sin_addr), sizeof(pIOHanldeData->strServIp) - 1);
         pIOHanldeData->ulPort = pSocketElement->uSockElement.tClnSockElement.uClientPort;
         pIOHanldeData->lDataLen = nPacketSize;
+        pIOHanldeData->pDataSend = pPacket;
         pIOHanldeData->handle_io_eventfd = pIoThreadContext->handle_io_eventfd;
         pIOHanldeData->handle_io_msgque = pIoThreadContext->handle_io_msgque;
-        pIOHanldeData->io_thread_index = pIoThreadContext->threadindex;
-        pIOHanldeData->pDataSend = pPacket;
         pIOHanldeData->pfncnv_handle_business = pSocketElement->uSockElement.tClnSockElement.pfncnv_handle_business;
-        pIOHanldeData->nReserveOne = pSocketElement->uSockElement.tClnSockElement.nReserveOne;
-        pIOHanldeData->nReserverTwo = pSocketElement->uSockElement.tClnSockElement.nReserverTwo;
 
-        io_select_handle_thread(pIoThreadContext, pIoThreadContext->szHandleContext, pIoThreadContext->queDistribute, &pHandleContext);
+        io_select_handle_thread(pIoThreadContext, &pHandleContext);
 
         nRet = lockfree_queue_enqueue(&(pHandleContext->io_handle_msgque), pIOHanldeData, 1);   //队列满了把数据丢掉,以免内存泄露
         if(nRet == false)
         {
             LOG_SYS_ERROR("io_handle queue is full!");
-            cnv_comm_Free(pPacket);
-            cnv_comm_Free(pIOHanldeData);
+            free(pPacket);
+            free(pIOHanldeData);
             pIoThreadContext->tMonitorElement.lSvrFailedNum++;
             continue;
         }
@@ -1110,6 +1097,7 @@ int iothread_handle_read(int Epollfd, void *pConnId, void *HashConnidFd, IO_THRE
             LOG_SYS_FATAL("io wake up handle failed !");
         }
     }
+
     LOG_SYS_DEBUG("iothread_handle_read end.");
     return  CNV_ERR_OK;
 }
@@ -1254,7 +1242,7 @@ int  io_thread_run(void *pThreadParameter)
 {
     uint64_t ulData = 0;
     struct epoll_event szEpollEvent[DEFAULF_EPOLL_SIZE];
-    bzero(szEpollEvent, sizeof(szEpollEvent));
+    memset(szEpollEvent, 0, sizeof(szEpollEvent));
     IO_THREAD_ITEM *pTheadparam = (IO_THREAD_ITEM *)pThreadParameter;
     IO_THREAD_CONTEXT *pIoThreadContext = pTheadparam->pIoThreadContext;
     int Epollfd = pIoThreadContext->Epollfd;
@@ -1308,13 +1296,10 @@ int  io_thread_run(void *pThreadParameter)
                     else     //客户端消息
                     {
                         nRet = iothread_handle_read(Epollfd, szEpollEvent[i].data.ptr, HashConnidFd, pIoThreadContext);
-                        if(nRet != CNV_ERR_OK)
+                        if(nRet == CNV_ERR_HASHMAP_GET)
                         {
-                            if(nRet == CNV_ERR_HASHMAP_GET)
-                            {
-                                netframe_delete_event(Epollfd, szEpollEvent[i].data.fd);
-                                netframe_close_socket(szEpollEvent[i].data.fd);
-                            }
+                            netframe_delete_event(Epollfd, szEpollEvent[i].data.fd);
+                            netframe_close_socket(szEpollEvent[i].data.fd);
                         }
                     }
                 }
@@ -1348,7 +1333,7 @@ int  io_thread_run(void *pThreadParameter)
                 }
             }
 
-            bzero(szEpollEvent, sizeof(struct epoll_event)*nCount);
+            memset(szEpollEvent, 0, sizeof(struct epoll_event)*nCount);
         }
         else if(nCount < 0)   //错误
         {
@@ -1475,7 +1460,6 @@ int io_thread_start(HANDLE_THREAD_CONTEXT *pHandleContexts, IO_THREAD_CONTEXT *p
         pIoThreadContext->threadindex = i + 1;
         snprintf(pIoThreadContext->threadname, sizeof(pIoThreadContext->threadname) - 1, "%s", g_params.tConfigIO.szConfigIOItem[i].strThreadName);  //线程名
         pIoThreadContext->queServer = queServer;
-        pIoThreadContext->nDistributeType = g_params.tConfigIO.szConfigIOItem[i].nDistributeType;
         nRet = hmi_plat_CreateThread((pfnCNV_PLAT_THREAD_RECALL)io_thread_run, &(g_params.tConfigIO.szConfigIOItem[i]), 0, &g_params.tConfigIO.szConfigIOItem[i].ulThreadId, &g_params.tConfigIO.szConfigIOItem[i].ThreadHandle);
         LOG_SYS_INFO("io thread start result:%d", nRet);
     }

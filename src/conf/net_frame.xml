@@ -58,16 +58,19 @@
      <io_thread>
         <thread>
             <name>T1</name>
+			<isstatistics>1</isstatistics>
             <distribution>H1,H2,H3</distribution>
             <algorithm>1:1:1</algorithm>
         </thread>
         <thread>
             <name>T2</name>
+			<isstatistics>1</isstatistics>
             <distribution>H1,H2,H3</distribution>
             <algorithm>1:1:1</algorithm>
         </thread>
         <thread>
             <name>T3</name>
+			<isstatistics>1</isstatistics>
             <distribution>H1,H2,H3</distribution>
             <algorithm>1:1:1</algorithm>
         </thread>
@@ -75,31 +78,23 @@
     <handle_thread>
         <handle>
             <name>H1</name>
+			<isstatistics>1</isstatistics>
             <distribution>T1,T2,T3</distribution>
             <algorithm>1:1:1</algorithm>
         </handle> 
         <handle>
             <name>H2</name>
+			<isstatistics>1</isstatistics>
             <distribution>T1,T2,T3</distribution>
             <algorithm>1:1:1</algorithm>
         </handle> 
         <handle>
             <name>H3</name>
+			<isstatistics>1</isstatistics>
             <distribution>T1,T2,T3</distribution>
             <algorithm>1:1:1</algorithm>
         </handle> 
     </handle_thread>
-	<auxiliary_thread>
-		<auxiliary>
-			<name>A1</name>
-		</auxiliary>
-		<auxiliary>
-			<name>A2</name>
-		</auxiliary>
-		<auxiliary>
-			<name>A3</name>
-		</auxiliary>
-	</auxiliary_thread>
 	<clearsocket>
 			<valuesec>180</valuesec>
 			<valuensec>0</valuensec>
@@ -113,9 +108,9 @@
 			<intervalnsec>0</intervalnsec>
 	</heartbeat>
 	<monitor>
-			<valuesec>3</valuesec>
+			<valuesec>60</valuesec>
 			<valuensec>0</valuensec>
-			<intervalsec>3</intervalsec>
+			<intervalsec>60</intervalsec>
 			<intervalnsec>0</intervalnsec>
 	</monitor>
 	<handleiomsgsize>10000</handleiomsgsize>
